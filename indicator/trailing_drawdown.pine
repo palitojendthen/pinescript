@@ -1,0 +1,45 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'Trailing Drawdown', shorttitle = 'drawdown', overlay = false, scale = scale.right)
+
+
+// input
+src = input(defval = close, title = 'Source', group = 'Options', tooltip = 'Determines the source of input data, default to close')
+viz_style = input.string(defval = 'Static', title = ' Type', group = 'Options', options = ['Static', 'Dynamic'], tooltip = 'Choose drawdown display type between static or dynamic')
+show_level = input.bool(defval = true, title = 'Level', group = 'Lookback Period', tooltip = 'Determines whether to display current level, default to true', inline = 'f')
+length = input.int(defval = 252, title = 'Length', minval = 100, maxval = 1000, group = 'Lookback Period', tooltip = 'Determines lookback period for compute trailing drawdown, default in a year', inline = 'f')
+
+
+// drawdown
+drawdown(_src, _length)=>
+    var peaks = array.new_float(_length)
+    var max_peaks = 0.0
+    for i = 1 to _length-1
+        if _src > _src[i]
+            array.set(peaks, i, _src)
+        max_peaks := array.max(peaks)
+    dd = (src/max_peaks)-1
+    [max_peaks, dd]
+
+[max_peaks, dd] = drawdown(src, length)
+
+
+// visualize
+p1 = plot(dd, color = viz_style == 'Static' ? color.new(color.red, 80) : na, style = plot.style_area)
+p2 = plot(dd, color = viz_style == 'Static' ? color.new(color.orange, 50) : na, style = plot.style_line, linewidth = 2)
+p3 = plot(viz_style == 'Dynamic' ? max_peaks : 0, color = viz_style == 'Dynamic' ? color.navy : na)
+p4 = plot(viz_style == 'Dynamic' ? src : 0, color = viz_style == 'Dynamic' ? color.new(color.orange, 50) : na)
+fill(p3, p4, color = viz_style == 'Dynamic' ? color.new(color.red, 80) : na)
+
+// additional shorter timeframe
+[pp_month, dd_month] = drawdown(src, (length/12))
+p5 = plot(viz_style == 'Dynamic' ? pp_month : 0, color = viz_style == 'Dynamic' ? color.navy : na)
+fill(p5, p4, color = viz_style == 'Dynamic' ? color.new(color.orange, 95) : na)
+
+// add current level line
+float _level = viz_style == 'Static' ? dd : src
+var line _line = line.new(na, na, na, na, xloc = xloc.bar_time, extend = extend.both, color = show_level ? color.olive : na, style = line.style_dotted)
+line.set_xy1(_line, time, _level)
+line.set_xy2(_line, time+1, _level)
