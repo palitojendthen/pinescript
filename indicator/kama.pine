@@ -1,0 +1,165 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'Perry J. Kaufman - Adaptive Moving Average - Modified', shorttitle = 'kama', overlay = true)
+
+
+// input
+src = input.source(defval = ohlc4, title = 'Source', group = 'Options', tooltip = 'Determines the source of input data, default to ohlc4')
+length = input.int(defval = 14, title = 'Length', group = 'Options', minval = 10, maxval = 20, tooltip = 'Determines the length of input data')
+hp_period = input.int(defval = 48, title = 'High-Pass Period', group = 'Options', tooltip = 'Determines the length of High-Pass period')
+band = input.float(defval = .5, title = 'Hysteresis Mult', group = 'Options', minval = .1, maxval = .9, tooltip = 'Determines the float hysteresis multiplier, default to 0.5 with minimum value of 0.1 for lower timeframe, and greater of 0.9')
+hysteresis = input.bool(defval = true, title = 'Hysteresis', group = 'Toggle', tooltip = 'Determines whether to display hysteresis band', inline = 'f')
+bar_color = input.bool(defval = false, title = 'Bar Color', group = 'Toggle', tooltip = 'Determines whether to apply bar color', inline = 'f')
+
+
+// determine applied length with dominant cycle (Ehlers)
+// variable
+avg_length = 3
+m = 0.00
+n = 0.00
+x = 0.00
+y = 0.09
+alpha1 = 0.00
+hp = 0.00
+a1 = 0.00
+b1 = 0.00
+c1 = 0.00
+c2 = 0.00
+c3 = 0.00
+filt = 0.00
+sx = 0.00
+sy = 0.00
+sxx = 0.00
+syy = 0.00
+sxy = 0.00
+max_pwr = 0.00
+dominant_cycle = 0.00
+
+// array
+var corr = array.new_float(50)
+var cosine_part = array.new_float(50)
+var sine_part = array.new_float(50)
+var sq_sum = array.new_float(50)
+var r1 = array.new_float(50)
+var r2 = array.new_float(50)
+var pwr = array.new_float(50)
+
+// high-pass filter cyclic components whose periods are shorter than 48 bars
+pi = 2*math.asin(1)
+alpha1 := (math.cos(.707*360/hp_period)+math.sin(.707*360/hp_period)-1)/math.cos(.707*360/hp_period)
+hp := (1-alpha1/2)*(1-alpha1/2)*(src-2*src[1]+src[2])+2*(1-alpha1)*nz(hp[1])-(1-alpha1)*(1-alpha1)*nz(hp[2])
+
+// smooth with super smoother filter
+a1 := math.exp(-1.414*pi/10)
+b1 := 2*a1*math.cos(1.414*180/10)
+c2 := b1
+c3 := -a1*a1
+c1 := 1-c2-c3
+filt := c1*(hp+hp[1])/2+c2*nz(filt[1])+c3*nz(filt[2])
+
+// pearson correlation for each value of lag
+for lag = 1 to 48
+    // set the averaging length as m
+    m := avg_length
+    if avg_length == 0
+        m := lag
+    // initialize correlation sums
+    sx := 0.00
+    sy := 0.00
+    sxx := 0.00
+    syy := 0.00
+    sxy := 0.00
+    // advance samples of both data streams and sum pearson components
+    for count = 0 to m-1
+        x := filt[count]
+        y := filt[lag+count]
+        sx := sx+x
+        sy := sy+y
+        sxx := sxx+x*x
+        sxy := sxy+x*y
+        syy := syy+y*y
+    // compute correlation for each value of lag
+    if (m*sxx-sx*sx)*(m*syy-sy*sy) > 0
+        array.set(corr, lag, ((m*sxy-sx*sy)/math.sqrt((m*sxx-sx*sx)*(m*syy-sy*sy))))
+
+for period = 10 to 48
+    array.set(cosine_part, period, 0)
+    array.set(sine_part, period, 0)
+    for n2 = 3 to 48
+        array.set(cosine_part, period, nz(array.get(cosine_part, period))+nz(array.get(corr, n2))*math.cos(360*n2/period))
+        array.set(sine_part, period, nz(array.get(sine_part, period))+nz(array.get(corr, n2))*math.sin(360*n2/period))
+    array.set(sq_sum, period, nz(array.get(cosine_part, period))*nz(array.get(cosine_part, period))+nz(array.get(sine_part, period))*nz(array.get(sine_part, period)))
+
+for period2 = 10 to 48
+    array.set(r2, period2, nz(array.get(r1, period2)))
+    array.set(r1, period2, .2*nz(array.get(sq_sum, period2))*nz(array.get(sq_sum, period2))+.8*nz(array.get(r2, period2)))
+
+// find maximum power level for normalization
+max_pwr := .991*max_pwr
+for period3 = 10 to 48
+    if nz(array.get(r1, period3)) > max_pwr
+        max_pwr := nz(array.get(r1, period3))
+for period4 = 3 to 48
+    array.set(pwr, period4, nz(array.get(r1, period4))/max_pwr)
+
+// compute the dominant cycle using the cg of the spectrum
+spx = 0.00
+sp = 0.00
+
+for period5 = 10 to 48
+    if nz(array.get(pwr, period5)) >= .5
+        spx := spx+period5*nz(array.get(pwr, period5))
+        sp := sp+nz(array.get(pwr, period5))
+
+if sp != 0
+    dominant_cycle := spx/sp
+if dominant_cycle < 8
+    dominant_cycle := 8
+if dominant_cycle > 14
+    dominant_cycle := 14
+
+
+// kaufman adaptive moving average
+fastest = float(2)/(2+1)
+slowest = float(2)/(30+1)
+
+// eficiency ratio
+num = src - src[int(dominant_cycle)]
+num := num > 0 ? num : num*-1
+denom = math.sum(math.abs(src-src[1]), int(dominant_cycle))
+er = num/denom
+
+// smoothing constant
+sc = math.pow(er*(fastest-slowest)+slowest, 2)
+
+kama = 0.00
+kama := nz(kama[1]) + sc*(src-nz(kama[1]))
+
+
+// visualize
+// color condition
+color_con = kama > kama[1] and kama[1] > kama[2] ? color.green : color.red
+_color_con = kama > kama[1] and kama[1] > kama[2]
+
+high_kama = ta.highest(kama, int(dominant_cycle))
+low_kama = ta.lowest(kama, int(dominant_cycle))
+norm_kama = (kama - low_kama)/(high_kama-low_kama)
+
+color_con(x)=>
+    if x > .5
+        color.rgb(255*(2-2*x), 255, 0)
+    else if x < .5
+        color.rgb(255, 2*255*x, 0)
+
+plot(kama, color = color_con(norm_kama), linewidth = 3)
+// plot(kama, color = color_con, linewidth = 2)
+plot(hysteresis ? kama*(1+(band/100)) : na, color = color.new(color.yellow, 50), linewidth = 1)
+plot(hysteresis ? kama*(1-(band/100)) : na, color = color.new(color.yellow, 50), linewidth = 1)
+// barcolor(bar_color ? color_con : na)
+
+
+// alert condition
+alertcondition((not _color_con[1] and _color_con and barstate.isconfirmed), title = 'Kama Entry', message = 'Buy/Long entry detected')
+alertcondition((_color_con[1] and not _color_con and barstate.isconfirmed), title = 'Kama Close', message = 'Sell/Short entry detected ')
