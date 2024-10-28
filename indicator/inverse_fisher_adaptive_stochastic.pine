@@ -1,0 +1,161 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'John F. Ehlers - Inverse Fisher Transform of Adaptive Stochastic', shorttitle = 'inverse_fisher_adaptive_stochastic', overlay = false)
+
+
+// input
+src = input.source(defval = ohlc4, title = 'Source', group = 'Options', tooltip = 'Determines the source of input data, default to ohlc4')
+hp_period = input.int(defval = 48, title = 'High-Pass Period', group = 'Options', tooltip = 'Determines the length of High-Pass Period')
+
+
+// variable
+avg_length = 3
+m = 0
+n = 0
+x = 0.00
+y = 0.00
+alpha1 = 0.00
+hp = 0.00
+a1 = 0.00
+b1 = 0.00
+c1 = 0.00
+c2 = 0.00
+c3 = 0.00
+filt = 0.00
+sx = 0.00
+sy = 0.00
+sxx = 0.00
+syy = 0.00
+sxy = 0.00
+sp = 0.00
+spx = 0.00
+max_pwr = 0.00
+dominant_cycle = 0.00
+
+
+// arrays
+var corr = array.new_float(50)
+var cosine_part = array.new_float(50)
+var sine_part = array.new_float(50)
+var sq_sum = array.new_float(50)
+var r1 = array.new_float(50)
+var r2 = array.new_float(50)
+var pwr = array.new_float(50)
+
+
+// compute inferse fisher transform of adaptive stochastic
+// highpass filter cyclic components whose periods are shorter than 48 bars
+pi = 2*math.asin(1)
+alpha1 := (math.cos(.707*2*pi/hp_period) + math.sin(.707*2*pi/hp_period)-1)/math.cos(.707*2*pi/hp_period)
+hp := (1-alpha1/2)*(1-alpha1/2)*(src-2*src[1]+src[2])+2*(1-alpha1)*nz(hp[1])-(1-alpha1)*(1-alpha1)*nz(hp[2])
+
+// smooth with super smoother filter
+a1 := math.exp(-1.414*3.14159/10)
+b1 := 2*a1*math.cos(1.414*180/10)
+c2 := b1
+c3 := -a1*a1
+c1 := 1-c2-c3
+filt := c1*(hp+hp[1])/2+c2*nz(filt[1])+c3*nz(filt[2])
+
+// pearson correlation for each value of lag
+for lag = 0 to 48
+    // set the averaging length as m
+    m := avg_length
+    if avg_length == 0
+        m := lag
+    // initialize correlation sums
+    sx := 0.00
+    sy := 0.00
+    sxx := 0.00
+    syy := 0.00
+    sxy := 0.00
+    // advance samples of both data streams and sum pearson components
+    for count = 0 to m-1
+        x := filt[count]
+        y := filt[lag+count]
+        sx := sx+x
+        sy := sy+y
+        sxx := sxx+x*x
+        sxy := sxy+x*y
+        syy := syy+y*y
+    // compute correlation for each value of lag
+    if (m*sxx-sx*sx)*(m*syy-sy*sy) > 0
+        array.set(corr, lag, ((m*sxy-sx*sy)/math.sqrt((m*sxx-sx*sx)*(m*syy-sy*sy))))
+
+for period = 10 to 48
+    array.set(cosine_part, period, 0)
+    array.set(sine_part, period, 0)
+    for n2 = 3 to 48
+        array.set(cosine_part, period, nz(array.get(cosine_part, period))+nz(array.get(corr, n2))*math.cos(360*n2/period))
+        array.set(sine_part, period, nz(array.get(sine_part, period))+nz(array.get(corr, n2))*math.sin(360*n2/period))
+    array.set(sq_sum, period, nz(array.get(cosine_part, period)) * nz(array.get(cosine_part, period))+nz(array.get(sine_part, period))*nz(array.get(sine_part, period)))
+
+for period2 = 10 to 48
+    array.set(r2, period2, nz(array.get(r1, period2)))
+    array.set(r1, period2, .2*nz(array.get(sq_sum, period2))*nz(array.get(sq_sum, period2))+.8*nz(array.get(r2, period2)))
+
+// find maximum power level for normalization
+max_pwr := .995*max_pwr
+
+for period3 = 10 to 48
+    if nz(array.get(r1, period3)) > max_pwr
+        max_pwr := nz(array.get(r1, period3))
+
+for period4 = 3 to 48
+    array.set(pwr, period4, nz(array.get(r1, period4))/max_pwr)
+
+// compute the dominant cycle using the cg of the spectrum
+for period5 = 10 to 48
+    if nz(array.get(pwr, period5)) >= .5
+        spx := spx+period5*nz(array.get(pwr, period5))
+        sp := sp+nz(array.get(pwr, period5))
+
+if sp != 0
+    dominant_cycle := spx/sp
+if dominant_cycle < 10
+    dominant_cycle := 10
+if dominant_cycle > 48
+    dominant_cycle := 48
+
+// stochastic compuation start here
+highest = 0.00
+lowest = 0.00
+stoc = 0.00
+smooth_num = 0.00
+smooth_denom = 0.00
+adaptive_stoc = 0.00
+
+highest := filt
+lowest := filt
+
+for i = 0 to dominant_cycle-1
+    if filt[i] > highest
+        highest := filt[i]
+    if filt[i] < lowest
+        lowest := filt[i]
+
+stoc := (filt-lowest)/(highest-lowest)
+adaptive_stoc := c1*(stoc+stoc[1])/2+c2*nz(adaptive_stoc[1])+c3*nz(adaptive_stoc[2])
+
+value1 = 0.00
+ifish = 0.00
+trigger = 0.00
+
+value1 := 2*(adaptive_stoc-.5)
+ifish := (math.exp(2*3*value1)-1)/(math.exp(2*3*value1)+1)
+trigger := .9*ifish[1]
+
+
+// visualize
+color_con = ifish > trigger and ifish > ifish[1] ? color.green : color.red
+_color_con = ifish > trigger and ifish > ifish[1]
+
+plot(ifish, color = color_con, linewidth = 3)
+plot(trigger, color = color.new(color.aqua, 50))
+
+
+// create alert
+alertcondition((not _color_con[1] and _color_con), title = 'Entry', message = 'Buy/Long entry detected')
+alertcondition((_color_con and not _color_con), title = 'Close', message = 'Sell/Short entry detected')
