@@ -1,0 +1,67 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'Multiple Moving Average Envelope', shorttitle = 'ma_envelope', overlay = true)
+
+
+// input
+src = input.source(defval = ohlc4, title = 'Source', group = 'Options', tooltip = 'Determines the source of input data')
+ma_type = input.string(defval = 'WMA', title = 'MA Type', group = 'Options', options = ['EMA', 'SMA', 'WMA', 'HMA'], tooltip = 'Choose between moving average types')
+mult = input.float(defval = 0.1, title = 'Initial Multiplier', group = 'Options', step = 0.1, maxval = 1, tooltip = 'Determines value of multiplier for upper and lower band')
+value_at_risk = input.float(defval = 5.0, title = 'Confidence', group = 'Options', tooltip = 'Input confidence level (ps: no need convert to decimal)')
+show_ma = input.bool(defval = true, title = 'MA', group = 'Moving Average', tooltip = 'Determines whether to display moving average line', inline = 'f')
+length = input.int(defval = 10, title = 'Length', group = 'Moving Average', tooltip = 'Determines lookback period of moving average', inline = 'f')
+
+
+// switch between moving average type
+float ma = switch ma_type
+    "EMA" => ta.ema(src, length)
+    "SMA" => ta.sma(src, length)
+    "WMA" => ta.wma(src, length)
+    "HMA" => ta.hma(src, length)
+
+// multiple moving envelope
+env(_mult)=>
+    upper_band = ma*(1+_mult)
+    lower_band = ma*(1-_mult)
+    [upper_band, lower_band]
+
+
+// visualize
+// moving average envelope
+[u1, l1] = env(mult) // -> base
+[u2, l2] = env(mult+.2) // -> mult = .3
+[u3, l3] = env(mult+.4) // -> mult = .5
+[u4, l4] = env(mult+.6) // -> mult = .7
+fill(plot(u1, color = na), plot(l1, color = na), color.new(#1E90FF, 97))
+fill(plot(u2, color = na), plot(l2, color = na), color.new(#1E90FF, 97))
+fill(plot(u3, color = na), plot(l3, color = na), color.new(#1E90FF, 97))
+fill(plot(u4, color = na), plot(l4, color = na), color.new(#1E90FF, 97))
+
+// moving average
+plot(show_ma ? ma : na, color = color.maroon, linewidth = 2)
+
+
+// information table
+y = input.string(defval = 'top', title = 'Position', inline = '8', options = ['top', 'middle', 'bottom'], group = 'Information Value')
+x = input.string(defval = 'right', title = '', inline = '8', options = ['left', 'center', 'right'], group = 'Information Value')
+var table information_table = table.new(y + "_" + x, 2, 5)
+table.cell(information_table, 0, 1, 'Information' , text_halign = text.align_left, text_size = size.normal, text_color = color.new(color.maroon, 50))
+table.cell(information_table, 1, 1, 'Value' , text_size = size.normal, text_color = color.new(color.maroon, 50))
+
+// deviation
+returns = (close/close[1])-1
+stdev = math.round(ta.stdev(returns, length), 3)*100
+table.cell(information_table, 0, 2, 'Std. Deviation' , text_halign = text.align_left, text_size = size.normal, text_color = color.new(color.white, 50))
+table.cell(information_table, 1, 2, str.tostring(stdev)+'%' , text_size = size.normal, text_color = color.new(color.white, 50))
+
+// compounding growth
+compounded_growth = math.round(((math.pow((close/close[length]), (1/length))-1)*100),3)
+table.cell(information_table, 0, 3, 'Growth Rate' , text_halign = text.align_left, text_size = size.normal, text_color = color.new(color.white, 50))
+table.cell(information_table, 1, 3, str.tostring(compounded_growth) + '%', text_halign = text.align_left, text_size = size.normal, text_color = color.new(color.white, 50))
+
+// value-at-risk
+VaR = math.round(ta.percentile_nearest_rank(returns, length, value_at_risk),3)*100
+table.cell(information_table, 0, 4, 'Value-at-Risk' , text_halign = text.align_left, text_size = size.normal, text_color = color.new(color.white, 50))
+table.cell(information_table, 1, 4, str.tostring(VaR)+'%' ,text_size = size.normal, text_color = color.new(color.white, 50))
