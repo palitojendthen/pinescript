@@ -1,0 +1,87 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'Normalize Heatmap Indicator', shorttitle = 'normalize_heatmap', overlay = true)
+
+
+// input
+src = input.source(defval = ohlc4, title = 'Source', group = 'Options', tooltip = 'Determines the source of input data to be normalized')
+color_scheme = input.string(defval = 'Rainbow', title = 'Color Scheme', group = 'Options', options = ['Rainbow', 'RGB'], tooltip = 'Choose the applied heatmap color scheme')
+ma_type = input.string('WMA', title = 'MA Type', group = 'Options', options = ['WMA', 'EMA', 'SMA', 'RMA'],tooltip = 'Choose between moving average types')
+show_ma = input.bool(defval = true, title = 'MA', group = 'Lookback Period', tooltip = 'Determines whether to display moving average line', inline = 'f')
+length = input.int(defval = 50, title = 'Length', group = 'Lookback Period', tooltip = 'Determines lookback period of data to be normalized/moving average', inline = 'f')
+buy_alert = input.float(defval = .1, title = 'Buy', group = 'Alert', inline = 'f')
+sell_alert = input.float(defval = .9, title = 'Sell', group = 'Alert', tooltip = 'Determines the threshold/level to be used on buy/sell alert', inline = 'f')
+
+
+// normalize data
+// @source: source of input data
+// @length: lookback period
+norm(_src, _length)=>
+    _high = ta.highest(_src, _length)
+    _low = ta.lowest(_src, _length)
+    normalized = (_src-_low)/(_high-_low)
+
+normalize = norm(src, length)
+
+// moving average
+float ma = switch ma_type
+    'WMA' => ta.wma(src, length)
+    'EMA' => ta.ema(src, length)
+    'SMA' => ta.sma(src, length)
+    'RMA' => ta.rma(src, length)
+
+
+// color condition
+// (1) scheme1: rainbow heatmap - condition
+scheme1 = (normalize < 0.05 ? #0000CA :
+             normalize < 0.1 ? #0000DF :
+             normalize < 0.15 ? #0A4CFF :
+             normalize < 0.2 ? #0A85FF :
+             normalize < 0.25 ? #0AFFB6 :
+             normalize < 0.3 ? #0AFF64 :
+             normalize < 0.35 ? #01EB57 :
+             normalize < 0.4 ? #01C74A :
+             normalize < 0.45 ? #01C701 :
+             normalize < 0.5 ? #33BA02 :
+             normalize < 0.55 ? #EFFF06 :
+             normalize < 0.6 ? #CFDE00 :
+             normalize < 0.65 ? #FFE600 :
+             normalize < 0.7 ? #FCB000 :
+             normalize < 0.75 ? #FF9100 :
+             normalize < 0.8 ? #E88300 :
+             normalize < 0.85 ? #E85D00 :
+             normalize < 0.9 ? #D25400 :
+             normalize < 0.95 ? #FF2E04 :
+             #DC0404)
+
+// (2) scheme2: rgb - condition
+scheme2(x)=>
+    if x > .5
+        color.rgb(255*(2-2*x), 255, 0)
+    else if x < .5
+        color.rgb(255, 2*255*x, 0)
+
+color_shift = color_scheme == 'Rainbow' ? scheme1 : scheme2(normalize)
+
+// (3) moving average - condition
+ma_color = src > ma and ma > ma[1] ? color.green : color.red
+_ma_color = src > ma and ma > ma[1]
+
+
+// visualize
+plotcandle(open, high, low, close, color = color_shift, wickcolor = color_shift, bordercolor = color_shift)
+plot(show_ma ? ma : na, color = ma_color, linewidth = 2)
+
+
+// create alert
+// (1) moving average - alert
+alertcondition((not _ma_color[1] and _ma_color), title = 'MA Entry', message = 'Buy/Long entry detected')
+alertcondition((_ma_color[1] and not _ma_color), title = 'MA Close', message = 'Sell/Short entry detected ')
+
+// (2) normalize heatmap - alert
+_buy = ta.crossunder(normalize, buy_alert)
+_sell = ta.crossover(normalize, sell_alert)
+alertcondition(_buy, title = 'Normalized Entry', message = 'Buy/Long entry detected')
+alertcondition(_sell, title = 'Normalized Close', message = 'Sell/Short entry detected')
