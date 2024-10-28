@@ -1,0 +1,143 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'Adaptive relative Strength Index - John F. Ehlers', shorttitle = 'adaptive_rsi', overlay = false)
+
+
+// input
+src = input.source(defval = close, title = 'Source', group = 'Options', tooltip = 'Determines the source of input data, default to close')
+hp_period = input.int(defval = 48, title = 'High-pass Period', group = 'Value', tooltip = 'Determines the length of High-pass period')
+overbought = input.float(defval = .7, title = 'Overbought Level', group = 'Value', tooltip = 'Determines the Overbought Level/Area, default to 0.7')
+oversold = input.float(defval = .3, title = 'Oversold Level', group = 'Value', tooltip = 'Determines the Oversold Level/Area, default to 0.7')
+
+// variable
+length = 50
+avg_length = 0
+m = 0.00
+n = 0.00
+x = 0.00
+y = 0.09
+alpha1 = 0.00
+hp = 0.00
+a1 = 0.00
+b1 = 0.00
+c1 = 0.00
+c2 = 0.00
+c3 = 0.00
+filt = 0.00
+sx = 0.00
+sy = 0.00
+sxx = 0.00
+syy = 0.00
+sxy = 0.00
+max_pwr = 0.00
+dominant_cycle = 0.00
+close_up = 0.00
+close_down = 0.00
+denom = 0.00
+my_rsi = 0.00
+
+
+// array
+var corr = array.new_float(length)
+var cosine_part = array.new_float(length)
+var sine_part = array.new_float(length)
+var sq_sum = array.new_float(length)
+var r1 = array.new_float(length)
+var r2 = array.new_float(length)
+var pwr = array.new_float(length)
+
+
+// adaptive rsi
+// high-pass filter cyclic components whose periods are shorter than 48 bars
+pi = 2*math.asin(1)
+alpha1 := (math.cos(.707*2*pi/hp_period) + math.sin(.707*2*pi/hp_period)-1) / math.cos(.707*2*pi/hp_period)
+hp := (1-alpha1/2)*(1-alpha1/2)*(src-2*src[1]+src[2])+2*(1-alpha1)*nz(hp[1])-(1-alpha1)*(1-alpha1)*nz(hp[2])
+
+// smooth with super smoother filter
+a1 := math.exp(-1.414*pi/10)
+b1 := 2*a1*math.cos(1.414*180/10)
+c2 := b1
+c3 := -a1*a1
+c1 := 1-c2-c3
+filt := c1*(hp+hp[1])/2+c2*nz(filt[1])+c3*nz(filt[2])
+
+// pearson correlation for each value of lag
+for lag = 0 to 48
+    // set the averaging length as m
+    m := avg_length
+    if avg_length == 0
+        m := lag
+    // initialize correlation sums
+    sx := 0.00
+    sy := 0.00
+    sxx := 0.00
+    syy := 0.00
+    sxy := 0.00
+    // advance samples of both data streams and sum pearson components
+    for count = 0 to m
+        x := filt[count]
+        y := filt[lag+count]
+        sx := sx+x
+        sy := sy+y
+        sxx := sxx+x*x
+        sxy := sxy+x*y
+        syy := syy+y*y
+    // compute correlation for each value of lag
+    if (m*sxx-sx*sx)*(m*syy-sy*sy) > 0
+        array.set(corr, lag, ((m*sxy-sx*sy)/math.sqrt((m*sxx-sx*sx)*(m*syy-sy*sy))))
+
+for period = 10 to 48
+    array.set(cosine_part, period, 0)
+    array.set(sine_part, period, 0)
+    for n2 = 3 to 48
+        array.set(cosine_part, period, nz(array.get(cosine_part, period))+nz(array.get(corr, n2))*math.cos(360*n2/period))
+        array.set(sine_part, period, nz(array.get(sine_part, period))+nz(array.get(corr, n2))*math.sin(360*n2/period))
+    array.set(sq_sum, period, nz(array.get(cosine_part, period))*nz(array.get(cosine_part, period))+nz(array.get(sine_part, period))*nz(array.get(sine_part, period)))
+
+for period2 = 10 to 48
+    array.set(r2, period2, nz(array.get(r1, period2)))
+    array.set(r1, period2, .2*nz(array.get(sq_sum, period2))*nz(array.get(sq_sum, period2))+.8*nz(array.get(r2, period2)))
+
+// find maximum power level for normalization
+max_pwr := .991*max_pwr
+for period3 = 10 to 48
+    if nz(array.get(r1, period3)) > max_pwr
+        max_pwr := nz(array.get(r1, period3))
+for period4 = 3 to 48
+    array.set(pwr, period4, nz(array.get(r1, period4))/max_pwr)
+
+// compute the dominant cycle using the cg of the spectrum
+spx = 0.00
+sp = 0.00
+
+for period5 = 10 to 48
+    if nz(array.get(pwr, period5)) >= .5
+        spx := spx+period5*nz(array.get(pwr, period5))
+        sp := sp+nz(array.get(pwr, period5))
+
+if sp != 0
+    dominant_cycle := spx/sp
+if dominant_cycle < 10
+    dominant_cycle := 10
+if dominant_cycle > 48
+    dominant_cycle := 48
+
+// adaptive rsi starts here, using half the measured dominant cycle for tuning
+for count2 = 0 to int(dominant_cycle/2-1)
+    if filt[count2] > filt[count2+1]
+        close_up := close_up+(filt[count2]-filt[count2+1])
+    if filt[count2] < filt[count2+1]
+        close_down := close_down+(filt[count2+1]-filt[count2])
+
+denom := close_up+close_down
+
+if denom != 0 and denom[1] != 0
+    my_rsi := c1*(close_up/denom+close_up[1]/denom[1])/2+c2*my_rsi[1]+c3*my_rsi[2]
+
+
+// visualize
+hline(overbought, color = color.new(color.blue, 50), linestyle = hline.style_dashed)
+hline(oversold, color = color.new(color.blue, 50), linestyle = hline.style_dashed)
+plot(my_rsi, color =  color.maroon, linewidth = 3)
