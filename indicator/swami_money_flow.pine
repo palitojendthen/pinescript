@@ -1,0 +1,162 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title= 'Swami Chart - Chaikin Money Flow', shorttitle = 'swami_moneyflow', format = format.price, precision = 2, overlay = false)
+
+
+// input
+show_confirmation = input.bool(defval = false, title = 'Confirmation Level', group = 'Options', tooltip = 'Determines whether to display a confirmation level')
+
+
+// check volume
+vol = volume
+var cum_vol = 0.0
+cum_vol += nz(vol)
+
+if barstate.islast and cum_vol == 0
+    runtime.error('No volume is provided by the data vendor')
+
+
+// money flow
+// @length: input lookback period to compute the money flow
+money_flow(_length)=>
+    ad = close == high and close == low or high == low ? 0 : ((((close-low)-(high-close))/(high-low))*volume)
+    cmf = 0.00
+    cmf := math.sum(ad, _length)/math.sum(vol, _length)
+    if cmf < -0.5
+        cmf := -0.5
+    if cmf > 0.5
+        cmf := 0.5
+    smooth = (4*cmf+3*cmf[1]+2*cmf[2]+cmf[3])/10
+
+
+// visualize
+// color condition
+col(x)=>  x < -.5 ? #bb0202 :
+          x > -0.5 and x < -0.48 ? #c90101 :
+          x > -0.48 and x < -0.44 ? #d50000 :
+          x > -0.44 and x < -0.4 ? #f20000 :
+          x > -0.4 and x < -0.36 ? #fa0202 :
+          x > -0.36 and x < -0.32 ? #ff0606 :
+          x > -0.32 and x < -0.28 ? #ff1010 :
+          x > -0.28 and x < -0.24 ? #e43600 :
+          x > -0.24 and x < -0.2 ? #fc3c02 :
+          x > -0.2 and x < -0.16 ? #ff4810 :
+          x > -0.16 and x < -0.12 ? #ff5724 :
+          x > -0.12 and x < -0.08 ? #ff7627 :
+          x > -0.08 and x < -0.04 ? #ff7f35 :
+          x > -0.04 and x < 0 ? #ff7a0e :
+          x > 0 and x < 0.04 ? #FF9A00 :
+          x > 0.04 and x < 0.08 ? #FFCD00 :
+          x > 0.08 and x < 0.12 ? #D5FF00 :
+          x > 0.12 and x < 0.16 ? #ABFF00 :
+          x > 0.16 and x < 0.2 ? #66FF00 :
+          x > 0.2 and x < 0.24 ? #33FF00 :
+          x > 0.24 and x < 0.28 ? #00FF00 :
+          x > 0.28 and x < 0.32 ? #00E92F :
+          x > 0.32 and x < 0.36 ? #00D72B :
+          x > 0.36 and x < 0.4 ? #01ed30 :
+          x > 0.4 and x < 0.44 ? #00cf29 :
+          x > 0.44 and x < 0.48 ? #00b424 :
+          x > 0.48 and x < 0.5 ? #00ac22 :
+          #00a621
+
+
+// plot
+n = 0
+
+n := 1
+p1 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 2
+p2 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 3
+p3 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 4
+p4 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 5
+p5 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 6
+p6 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 7
+p7 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 8
+p8 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 9
+p9 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 10
+p10 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 11
+p11 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 12
+p12 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 13
+p13 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 14
+p14 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 15
+p15 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 16
+p16 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 17
+p17 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 18
+p18 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 19
+p19 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 20
+p20 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 21
+p21 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 22
+p22 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 23
+p23 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 24
+p24 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 25
+p25 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 26
+p26 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 27
+p27 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 28
+p28 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 29
+p29 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+n := 30
+p30 = plot(n, color = col(money_flow(n)), style = plot.style_linebr, linewidth = 10)
+
+// information level
+line.new(bar_index-5, 28, bar_index+2, 28, width = 2, color = na)
+line.new(bar_index-5, 15, bar_index+5, 15, width = 2, color = show_confirmation ? color.blue : na)
+line.new(bar_index-5, 2, bar_index+2, 2, width = 2, color = na)
