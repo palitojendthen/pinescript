@@ -1,0 +1,40 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'John F. Ehlers - Simple Decycler', shorttitle = 'decycler', overlay = true)
+
+// input
+src = input.source(defval = ohlc4, title = 'Source', group = 'Options', tooltip = 'Determines the input data, default to OHLC4, users can choose different input such close')
+hp_period = input.int(defval = 89, title = 'High Pass Period', group = 'Options', tooltip = 'Determines of High Pass period (impedes low frequency)')
+_hyst = input.bool(defval = true, title = 'Show Hysteresis', group = 'Options', tooltip = 'Determines whether to display hsyteresis up/down')
+
+
+// compute simple decycler
+simple_decycler(_source, _hp_period)=>
+    alpha1 = 0.00
+    hp = 0.00
+    decycler = 0.00
+    pi = 2*math.asin(1)
+
+    alpha1 := (math.cos(.707*2*pi/_hp_period)+math.sin(.707*2*pi/_hp_period)-1)/math.cos(.707*2*pi/_hp_period)
+    hp := (1-alpha1/2)*(1-alpha1/2)*(_source-2*nz(_source[1])+nz(_source[2]))+2*(1-alpha1)*nz(hp[1])-(1-alpha1)*(1-alpha1)*nz(hp[2])
+    decycler := _source-hp
+
+decycler =  simple_decycler(src, hp_period)
+hyst_up = decycler*(1+(.5/100))
+hyst_dn = decycler*(1-(.5/100))
+
+
+// visualize
+color_con = decycler > decycler[1] and decycler[1] > decycler[2] ? color.green : color.red
+_color_con = decycler > decycler[1] and decycler[1] > decycler[2]
+
+plot(decycler, color = color_con, linewidth = 3)
+plot(_hyst ? hyst_up : na, color = color.new(color.yellow, 50), linewidth = 1)
+plot(_hyst ? hyst_dn : na, color = color.new(color.yellow, 50), linewidth = 1)
+
+
+// create alert
+alertcondition((not _color_con[1] and _color_con), title = 'Entry', message = 'Buy/Long entry detected')
+alertcondition((_color_con and not _color_con), title = 'Close', message = 'Sell/Short entry detected')
