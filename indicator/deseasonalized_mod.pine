@@ -1,0 +1,52 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'Modified Deseasonalized/Centered MA', shorttitle = 'deseasonalized', overlay = true)
+
+
+// input
+src = input.source(defval = ohlc4, title = 'Source', group = 'Options', tooltip = 'Determines the source of input data, default to ohlc4')
+ma_type = input.string('WMA', title = 'MA Type', group = 'Options', options = ['WMA', 'EMA', 'SMA', 'RMA'], tooltip = 'Choose between Moving Average Types')
+length = input.int(defval = 10, title = 'Lookback Period', group = 'Options', tooltip = 'Determines the length for deseasonalized, consider overfitting/bias-variance trade-off')
+buy = input.bool(defval = true, title = 'Buy', group = 'Toggle', tooltip = 'Determines whether to show the Buy signal label', inline = 'f')
+sell = input.bool(defval = true, title = 'Sell', group = 'Toggle', tooltip = 'Determines whether to show the Sell signal label', inline = 'f')
+lag = input.bool(defval = true, title = 'Hysteresis', group = 'Toggle', tooltip = 'Determines whether to display a hysteresis band', inline = 'f')
+
+
+// deseasonalized
+deseasonalize(_src, _length)=>
+    float ma = switch ma_type
+        'WMA' => ta.wma(_src, _length)
+        'EMA' => ta.ema(_src, _length)
+        'SMA' => ta.sma(_src, _length)
+        'RMA' => ta.rma(_src, _length)
+    seasonality_mod = _src/ta.wma(ma, _length)
+    deseasonalized_mod = _src/seasonality_mod
+
+deseasonalized = deseasonalize(src, length)
+
+
+// visualize
+color_con = deseasonalized > deseasonalized[1] and deseasonalized[1] > deseasonalized[2] ? color.green : color.red
+_color_con = deseasonalized > deseasonalized[1] and deseasonalized[1] > deseasonalized[2] 
+
+plot(deseasonalized, color = color_con, linewidth = 3)
+plot(lag ? deseasonalized*(1+(.5/100)) : na, color = color.new(color.yellow, 50), linewidth = 1)
+plot(lag ? deseasonalized*(1-(.5/100)) : na, color = color.new(color.yellow, 50), linewidth = 1)
+
+// label
+if (not _color_con[1] and _color_con)
+    b = label.new(bar_index[1], deseasonalized*(1-.01), text = buy ? 'B' : na, style = label.style_label_upper_right, color = buy ? color.gray : na, textcolor = color.white, size = size.normal)
+    label.set_tooltip(b, 'Expected to be uptrend.\nPosistion: Buy/Entry Long')
+else
+    if (_color_con[1] and not _color_con)
+        s = label.new(bar_index[1], deseasonalized*(1+.01), text = sell ? 'S' : na, style = label.style_label_lower_right, color = sell ? color.blue : na, textcolor = color.white, size = size.normal)
+        label.set_tooltip(s, 'Expected to be downtrend.\nPosistion: Sell/Entry Short')
+    else
+        na
+
+
+// create alert
+alertcondition((not _color_con[1] and _color_con), title = 'Entry', message = 'Buy/Long entry detected')
+alertcondition((_color_con and not _color_con), title = 'Close', message = 'Sell/Short entry detected')
