@@ -1,0 +1,48 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'John F. Ehlers - Predictive Moving Average', shorttitle = 'predictive_moving_average', overlay = true)
+
+
+// input
+src = input.source(ohlc4, title = 'Source', group = 'Source', tooltip = 'Determines the source of input data, default to ohlc4')
+band = input.float(defval = 2, title = '%Band', group = 'Value', minval = 1, maxval = 100, step = 1, tooltip = 'Determines the % of applied band')
+bar_color = input.bool(defval= true, title = 'Bar Color', group = 'Options', tooltip = 'Determines whether to apply bar color, base on crossover or crossunder of predict to trigger')
+dynamic_band = input.bool(defval = false, title = 'Price Band', group = 'Options', tooltip = 'Determines whether to display price band (price-corridor)')
+
+
+// predictive moving average
+wma1 = 0.00
+wma2 = 0.00
+predict = 0.00
+trigger = 0.00
+
+wma1 := (7*src+6*src[1]+5*src[2]+4*src[3]+3*src[4]+2*src[5]+src[6])/28
+wma2 := (7*wma1+6*wma1[1]+5*wma1[2]+4*wma1[3]+3*wma1[4]+2*wma1[5]+wma1[6])/28
+
+predict := (2*wma1)-wma2
+trigger := (4*predict+3*predict[1]+2*predict[2]+predict)/10
+
+_series = predict > trigger ? predict : trigger
+upper = _series*(1+(band/100))
+lower = _series*(1-(band/100))
+
+
+// visualize
+// color condition
+color_con = predict > trigger and predict > predict[1] ? color.green : color.red 
+_color_con = predict > trigger and predict > predict[1]
+
+// bar color
+barcolor(bar_color ? color_con : na)
+
+// line type
+plot(_series, color = color_con, style = plot.style_line, linewidth = 2)
+p_up = plot(dynamic_band ? upper : na, color = color.new(color.yellow, 70))
+p_low = plot(dynamic_band ? lower : na, color = color.new(color.yellow, 70))
+
+
+// create alert
+alertcondition((not _color_con[1] and _color_con), title = 'Entry', message = 'Buy/Long entry point detected')
+alertcondition((_color_con[1] and not _color_con), title = 'Close', message = 'Sell/Short entry point detected')
