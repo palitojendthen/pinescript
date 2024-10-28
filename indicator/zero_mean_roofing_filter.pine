@@ -1,0 +1,46 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'John F. Ehlers - Zero Mean Roofing Filter', shorttitle = 'roofing_filter', overlay = false)
+
+
+// input
+hp_period = input.int(defval = 48, title = 'High-Pass Period', group = 'Value', tooltip = 'Determines the High-Pass period, default to 48')
+src = input.source(defval = ohlc4, title = 'Source', group = 'Options', tooltip = 'Detmerines the source of input data, default to ohlc4')
+
+
+// variable
+alpha1 = .00
+hp = .00
+a1 = .00
+b1 = .00
+c1 = .00
+c2 = .00
+c3 = .00
+filt = .00
+filt2 = .00
+
+
+// roofing filter
+// high-pass filter cycling components whose periods are shorter than 48 bars
+pi = 2*math.asin(1)
+alpha1 := (math.cos(360/hp_period) + math.sin(360/hp_period)-1)/math.cos(360/hp_period)
+hp := (1-alpha1/2)*(src-src[1])+(1-alpha1)*nz(hp[1])
+
+// smooth with super smoother filter
+a1 := math.exp(-1.414*pi/10)
+b1 := 2*a1*math.cos(1.414*180/10)
+c2 := b1
+c3 := -a1*a1
+c1 := 1-c2-c3
+filt := c1*(hp+hp[1])/2+c2*nz(filt[1])+c3*nz(filt[2])
+filt2 := (1-alpha1/2)*(filt-filt[1])+(1-alpha1)*nz(filt2[1])
+
+
+// visualize
+_color = filt > filt[1] and filt > 0 ? color.green : filt > filt[1] and filt < 0 ? color.new(color.green, 80) : filt < filt[1] and filt > 0 ? color.new(color.red, 80) : color.red
+color_con = filt > filt2 ? color.green : color.red
+_color_con = filt > filt2
+plot(filt, color = _color, linewidth = 3)
+hline(0, color = color.gray, linestyle = hline.style_dashed)
