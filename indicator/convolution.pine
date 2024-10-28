@@ -1,0 +1,170 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © palitoj_endthen
+
+//@version=5
+indicator(title = 'John F. Ehlers - Convolution', shorttitle = 'convolution', overlay = false)
+
+// input
+src = input.source(defval = ohlc4, title = 'Source', group = 'Options', tooltip = 'Determines the source of input data', inline = 'f')
+apply_hp = input.bool(defval = false, title = 'High-Pass Filter', group = 'Options', tooltip = 'Determines whether to apply High-Pass filter', inline = 'f')
+
+
+// variable
+shortest_period = 40
+longest_period = 80
+alpha1 = 0.00
+hp = 0.00
+a1 = 0.00
+b1 = 0.00
+c1 = 0.00
+c2 = 0.00
+c3 = 0.00
+filt = 0.00
+x = 0.00
+y = 0.00
+sx = 0.00
+sy = 0.00
+sxx = 0.00
+syy = 0.00
+sxy = 0.00
+
+
+// array
+var corr = array.new_float(50)
+var slope = array.new_float(50)
+var convolution = array.new_float(50)
+
+
+// convolution
+// high-pass filter cyclic components whose periods are shorter than 48 bars
+alpha1 := (math.cos(1.414*360/longest_period)+math.sin(1.414*360/longest_period)-1)/math.cos(1.414*360/longest_period)
+hp := (1-alpha1/2)*(1-alpha1/2)*(src-2*src[1]+src[2])+2*(1-alpha1)*nz(hp[1])-(1-alpha1)*(1-alpha1)*nz(hp[2])
+
+// smooth with super smoother filter
+pi = 2*math.asin(1)
+a1 := math.exp(-1.414*pi/shortest_period)
+b1 := 2*a1*math.cos(1.414*180/shortest_period)
+c2 := b1
+c3 := -a1*a1
+c1 := 1-c2-c3
+filt := c1*((apply_hp?hp:src)+(apply_hp?hp[1]:src[1]))/2+c2*nz(filt[1])+c3*nz(filt[2])
+
+// convolution
+for i = 1 to 48
+    sx := 0.0
+    sy := 0.0
+    sxx := 0.0
+    syy := 0.0
+    sxy := 0.0
+    for ii = 1 to i
+        x := filt[ii-1]
+        y := filt[i-ii]
+        sx := sx+x
+        sy := sy+y
+        sxx := sxx+x*x
+        sxy := sxy+x*y
+        syy := syy+y*y
+    if (i*sxx-sx*sx)*(i*syy-sy*sy) > 0
+        array.set(corr, i, ((i*sxy-sx*sy) /math.sqrt((i*sxx-sx*sx)*(i*syy-sy*sy))))
+    array.set(slope, i, 1)
+    if filt[.5*i] < filt
+        array.set(slope, i, -1)
+    array.set(convolution, i, (1+math.exp(3*nz(array.get(corr, i))))-1/(math.exp(3*nz(array.get(corr, i))-1))/2)
+
+
+// visualize as heatmap
+// color condition
+col(n)=>
+    if array.get(slope, n) > 0
+        color.rgb((255*array.get(convolution, n)), 0, 0)
+    else if array.get(slope, n) < 0
+        color.rgb(0, (255*array.get(convolution, n)), 0)
+
+// plot
+n = 0
+n := 2
+plot(n, title = 'n2', color = col(n), linewidth = 8)
+
+n := 3
+plot(n, title = 'n3', color = col(n), linewidth = 8)
+
+n := 4
+plot(n, title = 'n4', color = col(n), linewidth = 8)
+
+n := 6
+plot(n, title = 'n6', color = col(n), linewidth = 8)
+
+n := 8
+plot(n, title = 'n8', color = col(n), linewidth = 8)
+
+n := 10
+plot(n, title = 'n10', color = col(n), linewidth = 8)
+
+n := 11
+plot(n, title = 'n11', color = col(n), linewidth = 8)
+
+n := 12
+plot(n, title = 'n12', color = col(n), linewidth = 8)
+
+n := 14
+plot(n, title = 'n14', color = col(n), linewidth = 8)
+
+n := 16
+plot(n, title = 'n16', color = col(n), linewidth = 8)
+
+n := 18
+plot(n, title = 'n18', color = col(n), linewidth = 8)
+
+n := 20
+plot(n, title = 'n20', color = col(n), linewidth = 8)
+
+n := 21
+plot(n, title = 'n21', color = col(n), linewidth = 8)
+
+n := 22
+plot(n, title = 'n22', color = col(n), linewidth = 8)
+
+n := 24
+plot(n, title = 'n24', color = col(n), linewidth = 8)
+
+n := 26
+plot(n, title = 'n26', color = col(n), linewidth = 8)
+
+n := 28
+plot(n, title = 'n28', color = col(n), linewidth = 8)
+
+n := 30
+plot(n, title = 'n30', color = col(n), linewidth = 8)
+
+n := 31
+plot(n, title = 'n31', color = col(n), linewidth = 8)
+
+n := 32
+plot(n, title = 'n32', color = col(n), linewidth = 8)
+
+n := 34
+plot(n, title = 'n34', color = col(n), linewidth = 8)
+
+n := 36
+plot(n, title = 'n36', color = col(n), linewidth = 8)
+
+n := 38
+plot(n, title = 'n38', color = col(n), linewidth = 8)
+
+n := 40
+plot(n, title = 'n40', color = col(n), linewidth = 8)
+
+n := 41
+plot(n, title = 'n41', color = col(n), linewidth = 8)
+
+n := 42
+plot(n, title = 'n42', color = col(n), linewidth = 8)
+
+n := 44
+plot(n, title = 'n44', color = col(n), linewidth = 8)
+
+n := 46
+plot(n, title = 'n46', color = col(n), linewidth = 8)
+
+n := 48
+plot(n, title = 'n48', color = col(n), linewidth = 8)
